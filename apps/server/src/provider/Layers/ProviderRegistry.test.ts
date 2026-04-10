@@ -46,21 +46,11 @@ function unwrapWindowsProviderCommand(
   command: string,
   args: ReadonlyArray<string>,
 ): { command: string; args: ReadonlyArray<string> } {
-  const comSpec = process.env.ComSpec ?? "cmd.exe";
-  if (command !== comSpec || args.length !== 5) {
+  if (args.length > 0) {
     return { command, args };
   }
 
-  const [u, d, s, c, shellCommand] = args;
-  if (u !== "/u" || d !== "/d" || s !== "/s" || c !== "/c") {
-    return { command, args };
-  }
-
-  if (!shellCommand) {
-    return { command, args };
-  }
-
-  const parts = shellCommand.split(" ");
+  const parts = command.split(" ");
   return {
     command: parts[0] ?? command,
     args: parts.slice(1),

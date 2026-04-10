@@ -1,7 +1,11 @@
 import { Effect, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { collectStreamAsString, quoteWindowsShellArgument } from "./providerSnapshot";
+import {
+  collectStreamAsString,
+  makeProviderCommand,
+  quoteWindowsShellArgument,
+} from "./providerSnapshot";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -42,5 +46,22 @@ describe("quoteWindowsShellArgument", () => {
     expect(quoteWindowsShellArgument("C:\\Program Files\\tool\\")).toBe(
       '"C:\\Program Files\\tool\\\\"',
     );
+  });
+});
+
+describe("makeProviderCommand", () => {
+  it("uses a shell command string for Windows paths with spaces", () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+
+    const command = makeProviderCommand("C:\\Program Files\\Codex\\codex.exe", ["--version"]);
+    const resolved = command as unknown as {
+      command: string;
+      args: ReadonlyArray<string>;
+      options: { shell?: boolean };
+    };
+
+    expect(resolved.command).toBe('"C:\\Program Files\\Codex\\codex.exe" --version');
+    expect(resolved.args).toEqual([]);
+    expect(resolved.options.shell).toBe(true);
   });
 });

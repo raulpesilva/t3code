@@ -70,14 +70,10 @@ export function makeProviderCommand(
     ...args.map(quoteWindowsShellArgument),
   ].join(" ");
 
-  return ChildProcess.make(
-    process.env.ComSpec ?? "cmd.exe",
-    ["/u", "/d", "/s", "/c", shellCommand],
-    {
-      shell: false,
-      env: options?.env,
-    },
-  );
+  return ChildProcess.make(shellCommand, [], {
+    shell: true,
+    env: options?.env,
+  });
 }
 
 function decodeProcessOutput(output: Uint8Array): string {
