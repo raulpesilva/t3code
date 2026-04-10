@@ -37,10 +37,6 @@ function normalizeSpawnError(command: string, args: readonly string[], error: un
   return new Error(`Failed to run ${commandLabel(command, args)}: ${error.message}`);
 }
 
-function lowerCaseOutput(value: string): string {
-  return value.toLowerCase();
-}
-
 const WINDOWS_COMMAND_NOT_FOUND_PATTERNS = [
   /is not recognized as an internal or external command/i,
   /n.o . reconhecido como um comando interno/i,
@@ -51,8 +47,7 @@ const WINDOWS_COMMAND_NOT_FOUND_PATTERNS = [
 ] as const;
 
 function hasWindowsCommandNotFoundMessage(output: string): boolean {
-  const normalized = lowerCaseOutput(output);
-  return WINDOWS_COMMAND_NOT_FOUND_PATTERNS.some((pattern) => pattern.test(normalized));
+  return WINDOWS_COMMAND_NOT_FOUND_PATTERNS.some((pattern) => pattern.test(output));
 }
 
 export function isWindowsCommandNotFound(code: number | null, stderr: string): boolean {
