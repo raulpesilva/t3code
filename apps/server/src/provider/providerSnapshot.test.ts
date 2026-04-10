@@ -21,6 +21,16 @@ describe("collectStreamAsString", () => {
 
     expect(result).toBe("n\u00e3o \u00e9 reconhecido");
   });
+
+  it("does not misclassify short UTF-8 Windows output as UTF-16LE", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+
+    const result = await Effect.runPromise(
+      collectStreamAsString(Stream.make(new Uint8Array(Buffer.from("AB", "utf8")))),
+    );
+
+    expect(result).toBe("AB");
+  });
 });
 
 describe("quoteWindowsShellArgument", () => {

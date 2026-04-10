@@ -86,13 +86,14 @@ function decodeProcessOutput(output: Uint8Array): string {
   }
 
   const buffer = Buffer.from(output);
-  if (buffer.length >= 2) {
+  if (buffer.length >= 2 && buffer.length % 2 === 0) {
     let zeroBytes = 0;
     for (let index = 1; index < buffer.length; index += 2) {
       if (buffer[index] === 0) zeroBytes += 1;
     }
 
-    if (zeroBytes >= Math.floor(buffer.length / 4)) {
+    const minimumZeroBytes = Math.max(1, Math.floor(buffer.length / 4));
+    if (zeroBytes >= minimumZeroBytes) {
       return buffer.toString("utf16le");
     }
   }
