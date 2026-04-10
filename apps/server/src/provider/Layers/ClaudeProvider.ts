@@ -7,7 +7,7 @@ import type {
   ServerProviderState,
 } from "@t3tools/contracts";
 import { Cache, Duration, Effect, Equal, Layer, Option, Result, Schema, Stream } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcessSpawner } from "effect/unstable/process";
 import { decodeJsonResult } from "@t3tools/shared/schemaJson";
 import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
 
@@ -17,6 +17,7 @@ import {
   detailFromResult,
   extractAuthBoolean,
   isCommandMissingCause,
+  makeProviderCommand,
   parseGenericCliVersion,
   providerModelsFromSettings,
   spawnAndCollect,
@@ -435,9 +436,7 @@ const runClaudeCommand = Effect.fn("runClaudeCommand")(function* (args: Readonly
     Effect.flatMap((service) => service.getSettings),
     Effect.map((settings) => settings.providers.claudeAgent),
   );
-  const command = ChildProcess.make(claudeSettings.binaryPath, [...args], {
-    shell: process.platform === "win32",
-  });
+  const command = makeProviderCommand(claudeSettings.binaryPath, args);
   return yield* spawnAndCollect(claudeSettings.binaryPath, command);
 });
 

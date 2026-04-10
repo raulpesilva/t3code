@@ -19,7 +19,7 @@ import {
   Result,
   Stream,
 } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcessSpawner } from "effect/unstable/process";
 
 import {
   buildServerProvider,
@@ -27,6 +27,7 @@ import {
   detailFromResult,
   extractAuthBoolean,
   isCommandMissingCause,
+  makeProviderCommand,
   parseGenericCliVersion,
   providerModelsFromSettings,
   spawnAndCollect,
@@ -319,8 +320,7 @@ const runCodexCommand = Effect.fn("runCodexCommand")(function* (args: ReadonlyAr
   const codexSettings = yield* settingsService.getSettings.pipe(
     Effect.map((settings) => settings.providers.codex),
   );
-  const command = ChildProcess.make(codexSettings.binaryPath, [...args], {
-    shell: process.platform === "win32",
+  const command = makeProviderCommand(codexSettings.binaryPath, args, {
     env: {
       ...process.env,
       ...(codexSettings.homePath ? { CODEX_HOME: codexSettings.homePath } : {}),

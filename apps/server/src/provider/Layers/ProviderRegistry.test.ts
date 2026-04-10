@@ -38,7 +38,40 @@ import { ProviderRegistry } from "../Services/ProviderRegistry";
 
 const encoder = new TextEncoder();
 
-function mockHandle(result: { stdout: string; stderr: string; code: number }) {
+function encodeUtf16Le(value: string): Uint8Array {
+  return new Uint8Array(Buffer.from(value, "utf16le"));
+}
+
+function unwrapWindowsProviderCommand(
+  command: string,
+  args: ReadonlyArray<string>,
+): { command: string; args: ReadonlyArray<string> } {
+  const comSpec = process.env.ComSpec ?? "cmd.exe";
+  if (command !== comSpec || args.length !== 5) {
+    return { command, args };
+  }
+
+  const [u, d, s, c, shellCommand] = args;
+  if (u !== "/u" || d !== "/d" || s !== "/s" || c !== "/c") {
+    return { command, args };
+  }
+
+  if (!shellCommand) {
+    return { command, args };
+  }
+
+  const parts = shellCommand.split(" ");
+  return {
+    command: parts[0] ?? command,
+    args: parts.slice(1),
+  };
+}
+
+function mockHandle(result: {
+  stdout: string | Uint8Array;
+  stderr: string | Uint8Array;
+  code: number;
+}) {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(1),
     exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(result.code)),
@@ -46,8 +79,12 @@ function mockHandle(result: { stdout: string; stderr: string; code: number }) {
     kill: () => Effect.void,
     unref: Effect.succeed(Effect.void),
     stdin: Sink.drain,
-    stdout: Stream.make(encoder.encode(result.stdout)),
-    stderr: Stream.make(encoder.encode(result.stderr)),
+    stdout: Stream.make(
+      typeof result.stdout === "string" ? encoder.encode(result.stdout) : result.stdout,
+    ),
+    stderr: Stream.make(
+      typeof result.stderr === "string" ? encoder.encode(result.stderr) : result.stderr,
+    ),
     all: Stream.empty,
     getInputFd: () => Sink.drain,
     getOutputFd: () => Stream.empty,
@@ -60,8 +97,9 @@ function mockSpawnerLayer(
   return Layer.succeed(
     ChildProcessSpawner.ChildProcessSpawner,
     ChildProcessSpawner.make((command) => {
-      const cmd = command as unknown as { args: ReadonlyArray<string> };
-      return Effect.succeed(mockHandle(handler(cmd.args)));
+      const cmd = command as unknown as { command: string; args: ReadonlyArray<string> };
+      const normalized = unwrapWindowsProviderCommand(cmd.command, cmd.args);
+      return Effect.succeed(mockHandle(handler(normalized.args)));
     }),
   );
 }
@@ -70,13 +108,14 @@ function mockCommandSpawnerLayer(
   handler: (
     command: string,
     args: ReadonlyArray<string>,
-  ) => { stdout: string; stderr: string; code: number },
+  ) => { stdout: string | Uint8Array; stderr: string | Uint8Array; code: number },
 ) {
   return Layer.succeed(
     ChildProcessSpawner.ChildProcessSpawner,
     ChildProcessSpawner.make((command) => {
       const cmd = command as unknown as { command: string; args: ReadonlyArray<string> };
-      return Effect.succeed(mockHandle(handler(cmd.command, cmd.args)));
+      const normalized = unwrapWindowsProviderCommand(cmd.command, cmd.args);
+      return Effect.succeed(mockHandle(handler(normalized.command, normalized.args)));
     }),
   );
 }
@@ -384,6 +423,44 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
             "Codex CLI (`codex`) is not installed or not on PATH.",
           );
         }).pipe(Effect.provide(failingSpawnerLayer("spawn codex ENOENT"))),
+      );
+
+      it.effect("treats localized Windows cmd missing-command output as unavailable", () =>
+        Effect.gen(function* () {
+          yield* withTempCodexHome();
+          const originalPlatform = process.platform;
+          Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+
+          try {
+            const status = yield* checkCodexProviderStatus().pipe(
+              Effect.provide(
+                mockCommandSpawnerLayer((command, args) => {
+                  if (command !== "codex" || args.join(" ") !== "--version") {
+                    throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+                  }
+                  return {
+                    stdout: new Uint8Array(),
+                    stderr: encodeUtf16Le(
+                      "'codex' n\u00e3o \u00e9 reconhecido como um comando interno\r\nou externo, um programa oper\u00e1vel ou um arquivo em lotes.\r\n",
+                    ),
+                    code: 1,
+                  };
+                }),
+              ),
+            );
+
+            assert.strictEqual(status.installed, false);
+            assert.strictEqual(
+              status.message,
+              "Codex CLI (`codex`) is not installed or not on PATH.",
+            );
+          } finally {
+            Object.defineProperty(process, "platform", {
+              value: originalPlatform,
+              configurable: true,
+            });
+          }
+        }),
       );
 
       it.effect("returns unavailable when codex is below the minimum supported version", () =>
@@ -924,6 +1001,43 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
             "Claude Agent CLI (`claude`) is not installed or not on PATH.",
           );
         }).pipe(Effect.provide(failingSpawnerLayer("spawn claude ENOENT"))),
+      );
+
+      it.effect("treats localized Windows cmd output for missing claude as unavailable", () =>
+        Effect.gen(function* () {
+          const originalPlatform = process.platform;
+          Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+
+          try {
+            const status = yield* checkClaudeProviderStatus().pipe(
+              Effect.provide(
+                mockCommandSpawnerLayer((command, args) => {
+                  if (command !== "claude" || args.join(" ") !== "--version") {
+                    throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+                  }
+                  return {
+                    stdout: new Uint8Array(),
+                    stderr: encodeUtf16Le(
+                      "'claude' n\u00e3o \u00e9 reconhecido como um comando interno\r\nou externo, um programa oper\u00e1vel ou um arquivo em lotes.\r\n",
+                    ),
+                    code: 1,
+                  };
+                }),
+              ),
+            );
+
+            assert.strictEqual(status.installed, false);
+            assert.strictEqual(
+              status.message,
+              "Claude Agent CLI (`claude`) is not installed or not on PATH.",
+            );
+          } finally {
+            Object.defineProperty(process, "platform", {
+              value: originalPlatform,
+              configurable: true,
+            });
+          }
+        }),
       );
 
       it.effect("returns error when version check fails with non-zero exit code", () =>

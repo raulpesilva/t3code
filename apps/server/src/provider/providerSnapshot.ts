@@ -38,6 +38,63 @@ export function isCommandMissingCause(error: unknown): boolean {
   return lower.includes("enoent") || lower.includes("notfound");
 }
 
+function quoteWindowsShellArgument(value: string): string {
+  if (value.length === 0) return '""';
+
+  const escaped = value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, "$1$1");
+
+  return /[\s"&<>|^()%!]/.test(value) ? `"${escaped}"` : escaped;
+}
+
+export function makeProviderCommand(
+  binaryPath: string,
+  args: ReadonlyArray<string>,
+  options?: {
+    readonly env?: NodeJS.ProcessEnv | undefined;
+  },
+): ChildProcess.Command {
+  if (process.platform !== "win32") {
+    return ChildProcess.make(binaryPath, [...args], {
+      shell: false,
+      env: options?.env,
+    });
+  }
+
+  const shellCommand = [
+    quoteWindowsShellArgument(binaryPath),
+    ...args.map(quoteWindowsShellArgument),
+  ].join(" ");
+
+  return ChildProcess.make(
+    process.env.ComSpec ?? "cmd.exe",
+    ["/u", "/d", "/s", "/c", shellCommand],
+    {
+      shell: false,
+      env: options?.env,
+    },
+  );
+}
+
+function decodeProcessChunk(chunk: Uint8Array): string {
+  if (process.platform !== "win32") {
+    return Buffer.from(chunk).toString("utf8");
+  }
+
+  const buffer = Buffer.from(chunk);
+  if (buffer.length >= 2 && buffer.length % 2 === 0) {
+    let zeroBytes = 0;
+    for (let index = 1; index < buffer.length; index += 2) {
+      if (buffer[index] === 0) zeroBytes += 1;
+    }
+
+    if (zeroBytes >= Math.floor(buffer.length / 4)) {
+      return buffer.toString("utf16le");
+    }
+  }
+
+  return buffer.toString("utf8");
+}
+
 export const spawnAndCollect = (binaryPath: string, command: ChildProcess.Command) =>
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -150,7 +207,7 @@ export const collectStreamAsString = <E>(
   stream: Stream.Stream<Uint8Array, E>,
 ): Effect.Effect<string, E> =>
   stream.pipe(
-    Stream.decodeText(),
+    Stream.map(decodeProcessChunk),
     Stream.runFold(
       () => "",
       (acc, chunk) => acc + chunk,
