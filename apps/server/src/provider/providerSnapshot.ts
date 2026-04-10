@@ -75,13 +75,13 @@ export function makeProviderCommand(
   );
 }
 
-function decodeProcessChunk(chunk: Uint8Array): string {
+function decodeProcessOutput(output: Uint8Array): string {
   if (process.platform !== "win32") {
-    return Buffer.from(chunk).toString("utf8");
+    return Buffer.from(output).toString("utf8");
   }
 
-  const buffer = Buffer.from(chunk);
-  if (buffer.length >= 2 && buffer.length % 2 === 0) {
+  const buffer = Buffer.from(output);
+  if (buffer.length >= 2) {
     let zeroBytes = 0;
     for (let index = 1; index < buffer.length; index += 2) {
       if (buffer[index] === 0) zeroBytes += 1;
@@ -207,9 +207,16 @@ export const collectStreamAsString = <E>(
   stream: Stream.Stream<Uint8Array, E>,
 ): Effect.Effect<string, E> =>
   stream.pipe(
-    Stream.map(decodeProcessChunk),
     Stream.runFold(
-      () => "",
-      (acc, chunk) => acc + chunk,
+      () => ({ chunks: [] as Buffer[], totalLength: 0 }),
+      (state, chunk) => {
+        const buffer = Buffer.from(chunk);
+        state.chunks.push(buffer);
+        state.totalLength += buffer.length;
+        return state;
+      },
+    ),
+    Effect.map(({ chunks, totalLength }) =>
+      decodeProcessOutput(Buffer.concat(chunks, totalLength)),
     ),
   );
