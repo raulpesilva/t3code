@@ -1,7 +1,7 @@
 import { Effect, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { collectStreamAsString } from "./providerSnapshot";
+import { collectStreamAsString, quoteWindowsShellArgument } from "./providerSnapshot";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -20,5 +20,17 @@ describe("collectStreamAsString", () => {
     );
 
     expect(result).toBe("n\u00e3o \u00e9 reconhecido");
+  });
+});
+
+describe("quoteWindowsShellArgument", () => {
+  it("preserves trailing backslashes when quoting is not needed", () => {
+    expect(quoteWindowsShellArgument("C:\\tools\\")).toBe("C:\\tools\\");
+  });
+
+  it("doubles trailing backslashes only when quoting is needed", () => {
+    expect(quoteWindowsShellArgument("C:\\Program Files\\tool\\")).toBe(
+      '"C:\\Program Files\\tool\\\\"',
+    );
   });
 });

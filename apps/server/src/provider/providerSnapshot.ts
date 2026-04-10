@@ -38,12 +38,17 @@ export function isCommandMissingCause(error: unknown): boolean {
   return lower.includes("enoent") || lower.includes("notfound");
 }
 
-function quoteWindowsShellArgument(value: string): string {
+export function quoteWindowsShellArgument(value: string): string {
   if (value.length === 0) return '""';
+
+  const requiresQuoting = /[\s"&<>|^()%!]/.test(value);
+  if (!requiresQuoting) {
+    return value;
+  }
 
   const escaped = value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, "$1$1");
 
-  return /[\s"&<>|^()%!]/.test(value) ? `"${escaped}"` : escaped;
+  return `"${escaped}"`;
 }
 
 export function makeProviderCommand(
