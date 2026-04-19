@@ -43,7 +43,7 @@ const WINDOWS_COMMAND_NOT_FOUND_PATTERNS = [
   /non .* riconosciuto come comando interno o esterno/i,
   /n.est pas reconnu en tant que commande interne/i,
   /no se reconoce como un comando interno o externo/i,
-  /wird nicht als interner oder externer befehl erkannt/i,
+  /wird nicht als interner oder externer befehl/i,
 ] as const;
 
 function hasWindowsCommandNotFoundMessage(output: string): boolean {
