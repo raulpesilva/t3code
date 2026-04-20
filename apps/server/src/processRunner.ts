@@ -40,7 +40,7 @@ function normalizeSpawnError(command: string, args: readonly string[], error: un
 const WINDOWS_COMMAND_NOT_FOUND_PATTERNS = [
   /is not recognized as an internal or external command/i,
   /n.o . reconhecido como um comando interno/i,
-  /non .* riconosciuto come comando interno o esterno/i,
+  /non . riconosciuto come comando interno o esterno/i,
   /n.est pas reconnu en tant que commande interne/i,
   /no se reconoce como un comando interno o externo/i,
   /wird nicht als interner oder externer befehl/i,
